@@ -1,0 +1,42 @@
+# Data
+data/raw/
+data/processed/
+
+# Models (keep examples, ignore large trained models)
+models/*.pt
+models/*.onnx
+!models/.gitkeep
+
+# Training runs
+runs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# W&B
+wandb/

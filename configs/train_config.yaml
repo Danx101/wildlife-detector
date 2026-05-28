@@ -1,0 +1,47 @@
+# YOLOv8 Training Configuration
+# Wildlife Detection - Caltech Camera Traps
+
+# Model
+model: yolov8n.yaml  # Train from scratch (not .pt)
+
+# Data
+data: configs/dataset.yaml
+imgsz: 640
+
+# Training
+epochs: 100
+batch: 16  # Adjust based on memory
+patience: 20  # Early stopping
+
+# Optimizer
+optimizer: AdamW
+lr0: 0.001
+lrf: 0.01  # Final learning rate = lr0 * lrf
+momentum: 0.937
+weight_decay: 0.0005
+warmup_epochs: 5
+warmup_momentum: 0.8
+
+# Augmentation
+augment: true
+hsv_h: 0.015  # Hue
+hsv_s: 0.7    # Saturation
+hsv_v: 0.4    # Value
+degrees: 10   # Rotation
+translate: 0.1
+scale: 0.5
+flipud: 0.5   # Vertical flip (animals can be upside down in traps)
+fliplr: 0.5   # Horizontal flip
+mosaic: 1.0   # Mosaic augmentation
+mixup: 0.1
+
+# Device
+device: mps  # Apple Silicon, change to 'cuda' or 'cpu' if needed
+
+# Logging
+project: wildlife-detector
+name: yolov8n-caltech
+exist_ok: true
+
+# Workers
+workers: 8
