@@ -161,7 +161,10 @@ with gr.Blocks(title="Wildlife Detector") as demo:
     refresh_btn.click(fn=refresh_examples, outputs=[example_gallery])
 
     def load_example(evt: gr.SelectData):
-        return evt.value["image"]["path"]
+        # Gradio 5.x: evt.value can be dict with 'image' key or direct path
+        if isinstance(evt.value, dict):
+            return evt.value.get("image", {}).get("path", evt.value)
+        return evt.value
 
     example_gallery.select(fn=load_example, outputs=[input_image])
 
