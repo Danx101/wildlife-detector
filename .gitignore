@@ -2,9 +2,9 @@
 data/raw/
 data/processed/
 
-# Models (keep examples, ignore large trained models)
-models/*.pt
+# Models (keep best.pt for deployment)
 models/*.onnx
+!models/best.pt
 !models/.gitkeep
 
 # Training runs

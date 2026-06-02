@@ -2,29 +2,22 @@
 Wildlife Detector - Gradio Demo
 
 Upload an image to detect wildlife using YOLOv8.
-Deployed on Hugging Face Spaces.
+Deployed on Hugging Face Spaces with ZeroGPU support.
 """
 
 import os
+import random
 from pathlib import Path
 
 import gradio as gr
-import numpy as np
-from PIL import Image
-
-# Use ONNX Runtime for faster CPU inference if available
-try:
-    import onnxruntime as ort
-
-    USE_ONNX = True
-except ImportError:
-    USE_ONNX = False
-
+import spaces
 from ultralytics import YOLO
 
-# Model path - will be set based on available model
+# Model path
 MODEL_PATH = os.environ.get("MODEL_PATH", "models/best.pt")
-ONNX_MODEL_PATH = os.environ.get("ONNX_MODEL_PATH", "models/best.onnx")
+
+# Examples directory
+EXAMPLES_DIR = Path("examples")
 
 # Class names
 CLASS_NAMES = [
@@ -38,53 +31,29 @@ CLASS_NAMES = [
     "skunk",
 ]
 
-# Colors for bounding boxes (RGB)
-COLORS = [
-    (255, 0, 0),      # Red
-    (0, 255, 0),      # Green
-    (0, 0, 255),      # Blue
-    (255, 255, 0),    # Yellow
-    (255, 0, 255),    # Magenta
-    (0, 255, 255),    # Cyan
-    (255, 128, 0),    # Orange
-    (128, 0, 255),    # Purple
-]
-
-
-def load_model():
-    """Load the detection model."""
-    # Prefer ONNX for CPU inference
-    if USE_ONNX and Path(ONNX_MODEL_PATH).exists():
-        print(f"Loading ONNX model from {ONNX_MODEL_PATH}")
-        return YOLO(ONNX_MODEL_PATH)
-    elif Path(MODEL_PATH).exists():
-        print(f"Loading PyTorch model from {MODEL_PATH}")
-        return YOLO(MODEL_PATH)
-    else:
-        # Fallback to pretrained for demo
-        print("No trained model found, using pretrained YOLOv8n")
-        return YOLO("yolov8n.pt")
-
-
 # Load model at startup
-model = load_model()
+if Path(MODEL_PATH).exists():
+    print(f"Loading model from {MODEL_PATH}")
+    model = YOLO(MODEL_PATH)
+else:
+    raise FileNotFoundError(
+        f"Model not found at {MODEL_PATH}. Please ensure best.pt is uploaded."
+    )
 
 
-def detect_wildlife(
-    image: Image.Image,
-    confidence_threshold: float = 0.25,
-    iou_threshold: float = 0.45,
-) -> tuple[Image.Image, str]:
+def get_random_examples(num_examples=4):
+    """Get random example images from the examples directory."""
+    all_images = list(EXAMPLES_DIR.glob("*.jpg")) + list(EXAMPLES_DIR.glob("*.png"))
+    if not all_images:
+        return []
+    selected = random.sample(all_images, min(num_examples, len(all_images)))
+    return [[str(img)] for img in selected]
+
+
+@spaces.GPU
+def detect_wildlife(image, confidence_threshold=0.25):
     """
     Run wildlife detection on an image.
-
-    Args:
-        image: Input PIL Image
-        confidence_threshold: Minimum confidence for detections
-        iou_threshold: IoU threshold for NMS
-
-    Returns:
-        Annotated image and detection summary
     """
     if image is None:
         return None, "Please upload an image."
@@ -93,7 +62,7 @@ def detect_wildlife(
     results = model.predict(
         source=image,
         conf=confidence_threshold,
-        iou=iou_threshold,
+        iou=0.45,
         verbose=False,
     )
 
@@ -103,7 +72,6 @@ def detect_wildlife(
 
     # Convert BGR to RGB (OpenCV uses BGR)
     annotated_image = annotated_image[:, :, ::-1]
-    annotated_pil = Image.fromarray(annotated_image)
 
     # Build detection summary
     detections = []
@@ -121,102 +89,81 @@ def detect_wildlife(
             detections.append(f"- {cls_name}: {conf:.1%}")
 
     if detections:
-        summary = f"**Detected {len(detections)} object(s):**\n" + "\n".join(detections)
+        summary = f"Detected {len(detections)} object(s):\n" + "\n".join(detections)
     else:
         summary = "No wildlife detected in this image."
 
-    return annotated_pil, summary
+    return annotated_image, summary
 
 
-def create_demo() -> gr.Blocks:
-    """Create the Gradio demo interface."""
+def refresh_examples():
+    """Refresh the example gallery with new random images."""
+    examples = get_random_examples(8)
+    images = [str(ex[0]) for ex in examples]
+    return images
 
-    with gr.Blocks(
-        title="Wildlife Detector",
-        theme=gr.themes.Soft(),
-    ) as demo:
-        gr.Markdown(
-            """
-            # 🦌 Wildlife Detector
 
-            Upload an image to detect wildlife using YOLOv8 trained from scratch
-            on the Caltech Camera Traps dataset.
+# Build UI with Blocks for more control
+with gr.Blocks(title="Wildlife Detector") as demo:
+    gr.Markdown(
+        """
+        # Wildlife Detector
+        Upload an image to detect wildlife using YOLOv8 trained on LILA Camera Traps dataset.
 
-            **Detectable animals:** deer, coyote, rabbit, squirrel, bird, bobcat, raccoon, skunk
-            """
-        )
+        **Detectable animals:** deer, coyote, rabbit, squirrel, bird, bobcat, raccoon, skunk
 
-        with gr.Row():
-            with gr.Column():
-                input_image = gr.Image(
-                    label="Upload Image",
-                    type="pil",
-                    sources=["upload", "clipboard"],
-                )
+        **Metrics:** mAP50: 0.682 | Precision: 0.702 | Recall: 0.606
+        """
+    )
 
-                with gr.Row():
-                    conf_slider = gr.Slider(
-                        minimum=0.1,
-                        maximum=0.9,
-                        value=0.25,
-                        step=0.05,
-                        label="Confidence Threshold",
-                    )
-                    iou_slider = gr.Slider(
-                        minimum=0.1,
-                        maximum=0.9,
-                        value=0.45,
-                        step=0.05,
-                        label="IoU Threshold (NMS)",
-                    )
+    with gr.Row():
+        with gr.Column():
+            input_image = gr.Image(type="numpy", label="Upload Image")
+            confidence_slider = gr.Slider(
+                minimum=0.1,
+                maximum=0.9,
+                value=0.25,
+                step=0.05,
+                label="Confidence Threshold",
+            )
+            detect_btn = gr.Button("Detect Wildlife", variant="primary")
 
-                detect_btn = gr.Button("Detect Wildlife", variant="primary")
+        with gr.Column():
+            output_image = gr.Image(type="numpy", label="Detection Results")
+            output_text = gr.Textbox(label="Summary")
 
-            with gr.Column():
-                output_image = gr.Image(label="Detection Results")
-                output_text = gr.Markdown(label="Summary")
+    gr.Markdown("### Example Images")
+    with gr.Row():
+        refresh_btn = gr.Button("🔄 Load New Examples", size="sm")
 
-        # Example images
-        gr.Markdown("### Examples")
-        gr.Examples(
-            examples=[
-                ["examples/deer.jpg"],
-                ["examples/coyote.jpg"],
-                ["examples/bird.jpg"],
-            ],
-            inputs=[input_image],
-            outputs=[output_image, output_text],
-            fn=detect_wildlife,
-            cache_examples=False,
-        )
+    example_gallery = gr.Gallery(
+        value=refresh_examples(),
+        label="Click an image to use it",
+        columns=4,
+        height="auto",
+        object_fit="cover",
+        allow_preview=False,
+    )
 
-        # Event handlers
-        detect_btn.click(
-            fn=detect_wildlife,
-            inputs=[input_image, conf_slider, iou_slider],
-            outputs=[output_image, output_text],
-        )
+    # Event handlers
+    detect_btn.click(
+        fn=detect_wildlife,
+        inputs=[input_image, confidence_slider],
+        outputs=[output_image, output_text],
+    )
 
-        input_image.change(
-            fn=detect_wildlife,
-            inputs=[input_image, conf_slider, iou_slider],
-            outputs=[output_image, output_text],
-        )
+    input_image.change(
+        fn=detect_wildlife,
+        inputs=[input_image, confidence_slider],
+        outputs=[output_image, output_text],
+    )
 
-        gr.Markdown(
-            """
-            ---
-            **Model:** YOLOv8n trained from scratch | **Dataset:** Caltech Camera Traps |
-            **Training:** Tracked with Weights & Biases
+    refresh_btn.click(fn=refresh_examples, outputs=[example_gallery])
 
-            [GitHub](https://github.com/yourusername/wildlife-detector) |
-            [W&B Report](https://wandb.ai/your-report)
-            """
-        )
+    def load_example(evt: gr.SelectData):
+        return evt.value["image"]["path"]
 
-    return demo
-
+    example_gallery.select(fn=load_example, outputs=[input_image])
 
 if __name__ == "__main__":
-    demo = create_demo()
-    demo.launch()
+    demo.launch(ssr_mode=False)
