@@ -1,3 +1,15 @@
+---
+title: Wildlife Detector
+emoji: 🦌
+colorFrom: green
+colorTo: blue
+sdk: gradio
+sdk_version: "4.44.1"
+python_version: "3.10"
+app_file: app.py
+pinned: false
+---
+
 # Wildlife Detector
 
 Real-time wildlife detection using YOLOv8n trained **from scratch** on camera trap imagery. Deployed on Hugging Face Spaces with ZeroGPU support.
