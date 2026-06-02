@@ -10,8 +10,14 @@ import random
 from pathlib import Path
 
 import gradio as gr
-import spaces
 from ultralytics import YOLO
+
+# ZeroGPU support - only available on HF Spaces
+try:
+    import spaces
+    SPACES_AVAILABLE = True
+except ImportError:
+    SPACES_AVAILABLE = False
 
 # Model path
 MODEL_PATH = os.environ.get("MODEL_PATH", "models/best.pt")
@@ -50,7 +56,14 @@ def get_random_examples(num_examples=4):
     return [[str(img)] for img in selected]
 
 
-@spaces.GPU
+def gpu_decorator(func):
+    """Apply @spaces.GPU decorator only when running on HF Spaces."""
+    if SPACES_AVAILABLE:
+        return spaces.GPU(func)
+    return func
+
+
+@gpu_decorator
 def detect_wildlife(image, confidence_threshold=0.25):
     """
     Run wildlife detection on an image.
