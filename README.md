@@ -105,6 +105,14 @@ Training and validation metrics over 100 epochs:
 
 ![PR Curve](results/BoxPR_curve.png)
 
+### F1-Confidence Curve
+
+![F1 Curve](results/BoxF1_curve.png)
+
+### Dataset Distribution
+
+![Labels Distribution](results/labels.jpg)
+
 ## Project Structure
 
 ```
